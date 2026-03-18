@@ -16,7 +16,7 @@ func Sidebar(state *diff.AppState, th theme.Theme, width, height int) string {
 
 	items := diff.VisibleTreeItems(state.Files, state.CollapsedDirs)
 
-	var b strings.Builder
+	var lines []string
 	for i, item := range items {
 		indent := strings.Repeat("  ", item.Depth)
 
@@ -56,16 +56,30 @@ func Sidebar(state *diff.AppState, th theme.Theme, width, height int) string {
 			if i == state.SidebarSelected && state.Focus == diff.FocusSidebar {
 				nameStyle = nameStyle.Underline(true)
 			}
-			line = fmt.Sprintf("%s%s %s", indent, statusBadge, nameStyle.Render(item.Name))
+
+			stats := ""
+			if item.FileIdx < len(state.FileStats) {
+				st := state.FileStats[item.FileIdx]
+				if st.Added > 0 || st.Deleted > 0 {
+					added := lipgloss.NewStyle().Foreground(lipgloss.Color(th.UI.StatusAdded)).Faint(true).
+						Render(fmt.Sprintf("+%d", st.Added))
+					deleted := lipgloss.NewStyle().Foreground(lipgloss.Color(th.UI.StatusDeleted)).Faint(true).
+						Render(fmt.Sprintf("-%d", st.Deleted))
+					stats = " " + added + " " + deleted
+				}
+			}
+
+			line = fmt.Sprintf("%s%s %s%s", indent, statusBadge, nameStyle.Render(item.Name), stats)
 		}
-		b.WriteString(line + "\n")
+		lines = append(lines, line)
 	}
 
+	content := strings.Join(lines, "\n")
 	return lipgloss.NewStyle().
 		Width(width).
 		Height(height).
 		BorderRight(true).
 		BorderStyle(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color(th.UI.Border)).
-		Render(b.String())
+		Render(content)
 }

@@ -83,9 +83,15 @@ type PanelLayout struct {
 	GutterWidth   int
 }
 
+// FileChangeStat holds precomputed line-change counts for one file.
+type FileChangeStat struct {
+	Added, Deleted int
+}
+
 // AppState holds all mutable state for the diff TUI.
 type AppState struct {
 	Files          []git_entity.FileDiff
+	FileStats      []FileChangeStat // precomputed per-file change counts
 	CurrentFileIdx int
 
 	DiffLines []git_entity.DiffLine
@@ -131,8 +137,23 @@ type AppState struct {
 
 // NewAppState initializes AppState with empty collections.
 func NewAppState(files []git_entity.FileDiff) *AppState {
+	stats := make([]FileChangeStat, len(files))
+	for i, f := range files {
+		if f.IsBinary {
+			continue
+		}
+		for _, l := range ComputeDiffLines(f.OldContent, f.NewContent) {
+			switch l.ChangeType {
+			case git_entity.Insert, git_entity.Modified:
+				stats[i].Added++
+			case git_entity.Delete:
+				stats[i].Deleted++
+			}
+		}
+	}
 	s := &AppState{
 		Files:              files,
+		FileStats:          stats,
 		CollapsedDirs:      make(map[string]bool),
 		ViewedFiles:        make(map[string]struct{}),
 		StackedViewedFiles: make(map[string]map[string]struct{}),

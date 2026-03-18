@@ -304,6 +304,8 @@ func (m Model) View() string {
 	mainContent := lipgloss.JoinVertical(lipgloss.Left, fileHeader, diffView)
 	view := lipgloss.JoinHorizontal(lipgloss.Top, sidebarView, mainContent)
 	view = lipgloss.JoinVertical(lipgloss.Left, view, footer)
+	// Defensive: strip any trailing newline that would push the terminal to scroll.
+	view = strings.TrimRight(view, "\n")
 
 	switch m.modal {
 	case modalHelp:
