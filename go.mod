@@ -8,6 +8,8 @@ require (
 	github.com/charmbracelet/huh v1.0.0
 	github.com/go-git/go-git/v5 v5.17.0
 	github.com/google/generative-ai-go v0.20.1
+	github.com/sergi/go-diff v1.4.0
+	github.com/smacker/go-tree-sitter v0.0.0-20240827094217-dd81d9e9be82
 	github.com/spf13/cobra v1.10.2
 	google.golang.org/api v0.189.0
 )
@@ -65,7 +67,6 @@ require (
 	github.com/muesli/termenv v0.16.0 // indirect
 	github.com/pjbgf/sha1cd v0.3.2 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
-	github.com/sergi/go-diff v1.4.0 // indirect
 	github.com/skeema/knownhosts v1.3.1 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
