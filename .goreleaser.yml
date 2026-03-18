@@ -1,0 +1,96 @@
+version: 2
+
+project_name: gitlens
+
+before:
+  hooks:
+    - go mod tidy
+    - go vet ./...
+
+builds:
+  # CGo build — macOS and Linux with syntax highlighting
+  - id: cgo
+    env:
+      - CGO_ENABLED=1
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+    flags:
+      - -trimpath
+    binary: gitlens
+
+  # Pure-Go build — Windows and CGo-free Linux (no syntax highlighting)
+  - id: nocgo
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - windows
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+    flags:
+      - -trimpath
+    binary: gitlens
+    id_template: "{{ .ProjectName }}_nocgo_{{ .Os }}_{{ .Arch }}"
+
+archives:
+  - id: cgo
+    builds: [cgo]
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - README.md
+      - LICENSE
+      - CHANGELOG.md
+
+  - id: nocgo
+    builds: [nocgo]
+    name_template: "{{ .ProjectName }}_nocgo_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - README.md
+      - LICENSE
+      - CHANGELOG.md
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - '^docs:'
+      - '^chore:'
+      - '^ci:'
+      - Merge pull request
+      - Merge remote-tracking branch
+  groups:
+    - title: Features
+      regexp: '^feat'
+    - title: Bug Fixes
+      regexp: '^fix'
+    - title: Refactoring
+      regexp: '^refactor'
+    - title: Other
+      order: 999
+
+release:
+  github:
+    owner: your-username
+    name: gitlens
+  draft: false
+  prerelease: auto
+  name_template: "v{{ .Version }}"
