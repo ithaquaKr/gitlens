@@ -2,7 +2,7 @@
 
 > AI-powered git CLI — interactive diff viewer, commit drafting, and natural-language git operations.
 
-[![CI](https://github.com/your-username/gitlens/actions/workflows/ci.yml/badge.svg)](https://github.com/your-username/gitlens/actions/workflows/ci.yml)
+[![CI](https://github.com/ithaquaKr/gitlens/actions/workflows/ci.yml/badge.svg)](https://github.com/ithaquaKr/gitlens/actions/workflows/ci.yml)
 [![Go Version](https://img.shields.io/badge/go-1.24%2B-00ADD8?logo=go)](go.mod)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -57,33 +57,33 @@
 
 ### Pre-built binaries
 
-Download the latest release for your platform from the [Releases page](https://github.com/your-username/gitlens/releases).
+Download the latest release for your platform from the [Releases page](https://github.com/ithaquaKr/gitlens/releases).
 
 ```bash
 # macOS / Linux (one-liner)
-curl -fsSL https://raw.githubusercontent.com/your-username/gitlens/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/ithaquaKr/gitlens/main/scripts/install.sh | sh
 ```
 
 ### Homebrew (macOS / Linux)
 
 ```bash
-brew install your-username/tap/gitlens
+brew install ithaquaKr/tap/gitlens
 ```
 
 ### From source
 
 ```bash
 # With syntax highlighting (requires C compiler)
-CGO_ENABLED=1 go install github.com/your-username/gitlens@latest
+CGO_ENABLED=1 go install github.com/ithaquaKr/gitlens@latest
 
 # Without syntax highlighting (pure Go, no C compiler needed)
-CGO_ENABLED=0 go install github.com/your-username/gitlens@latest
+CGO_ENABLED=0 go install github.com/ithaquaKr/gitlens@latest
 ```
 
 ### Build locally
 
 ```bash
-git clone https://github.com/your-username/gitlens
+git clone https://github.com/ithaquaKr/gitlens
 cd gitlens
 make build          # CGO_ENABLED=1 (recommended)
 make build-nocgo    # CGO_ENABLED=0 (no C compiler required)
@@ -287,7 +287,7 @@ gitlens diff --theme dracula
 ## Building from Source
 
 ```bash
-git clone https://github.com/your-username/gitlens
+git clone https://github.com/ithaquaKr/gitlens
 cd gitlens
 
 # Full build with syntax highlighting

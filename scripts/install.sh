@@ -2,13 +2,13 @@
 # install.sh — Download and install the latest gitlens release
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/your-username/gitlens/main/scripts/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/ithaquaKr/gitlens/main/scripts/install.sh | sh
 #   curl -fsSL ... | sh -s -- --no-cgo   (install CGo-free build)
 #   curl -fsSL ... | VERSION=v0.2.0 sh   (install specific version)
 
 set -e
 
-REPO="your-username/gitlens"
+REPO="ithaquaKr/gitlens"
 BINARY="gitlens"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 NO_CGO=0

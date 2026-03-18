@@ -52,4 +52,4 @@ Initial release.
 - **Pure-Go git** — no system `git` dependency (uses go-git)
 - **Dual build paths** — `CGO_ENABLED=1` (full features) and `CGO_ENABLED=0` (no C compiler required)
 
-[0.1.0]: https://github.com/your-username/gitlens/releases/tag/v0.1.0
+[0.1.0]: https://github.com/ithaquaKr/gitlens/releases/tag/v0.1.0

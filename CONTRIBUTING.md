@@ -5,7 +5,7 @@ Thanks for your interest in contributing to gitlens.
 ## Getting Started
 
 ```bash
-git clone https://github.com/your-username/gitlens
+git clone https://github.com/ithaquaKr/gitlens
 cd gitlens
 make build    # CGO_ENABLED=1 — verifies your C toolchain is available
 make test     # All tests must pass before submitting
