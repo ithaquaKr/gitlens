@@ -8,39 +8,69 @@ import (
 	"gitlens/internal/git_entity"
 )
 
-// TreeItemKind distinguishes directory entries from file entries in the sidebar tree.
+// TreeItemKind distinguishes the three kinds of rows in the sidebar tree.
 type TreeItemKind int
 
 const (
-	TreeItemDir  TreeItemKind = iota
-	TreeItemFile TreeItemKind = iota
+	TreeItemRepo TreeItemKind = iota // repository group header
+	TreeItemDir                      // directory entry
+	TreeItemFile                     // file entry
 )
 
 // TreeItem represents one visible row in the sidebar tree.
 type TreeItem struct {
-	Kind    TreeItemKind
-	Name    string // directory or file base name
-	DirPath string // full path for dirs; parent dir for files
-	FileIdx int    // index into AppState.Files; -1 for dirs
-	Depth   int    // nesting depth (0 = top-level)
+	Kind     TreeItemKind
+	Name     string // repo name, directory base name, or file base name
+	DirPath  string // unique key for collapse state: "<repoName>:<relPath>" for dirs
+	RepoName string // which repo this item belongs to
+	FileIdx  int    // index into AppState.Files; -1 for repos and dirs
+	Depth    int    // visual nesting depth (0 = repo header, 1 = top-level in repo, …)
 }
 
 type dirNode struct {
 	name     string
-	fullPath string
+	relPath  string // path relative to repo root
 	children []*dirNode
 	fileIdxs []int
 }
 
-// VisibleTreeItems returns the ordered list of sidebar rows, skipping collapsed subtrees.
+// VisibleTreeItems returns the ordered list of sidebar rows, grouped by repository,
+// with collapsed subtrees omitted.
 func VisibleTreeItems(files []git_entity.FileDiff, collapsedDirs map[string]bool) []TreeItem {
-	root := &dirNode{}
+	// Group files by repo, preserving first-seen order.
+	var repoOrder []string
+	repoFiles := map[string][]int{}
 	for i, f := range files {
-		insertPath(root, f.Path, i)
+		name := f.RepoName
+		if name == "" {
+			name = "repo"
+		}
+		if _, seen := repoFiles[name]; !seen {
+			repoOrder = append(repoOrder, name)
+		}
+		repoFiles[name] = append(repoFiles[name], i)
 	}
-	sortNode(root)
+
 	var items []TreeItem
-	walkNode(root, files, collapsedDirs, -1, &items)
+	for _, repoName := range repoOrder {
+		// Repo header row.
+		items = append(items, TreeItem{
+			Kind:     TreeItemRepo,
+			Name:     repoName,
+			RepoName: repoName,
+			FileIdx:  -1,
+			Depth:    0,
+		})
+
+		// Build the directory tree for this repo's files.
+		root := &dirNode{}
+		for _, idx := range repoFiles[repoName] {
+			insertPath(root, files[idx].Path, idx)
+		}
+		sortNode(root)
+		// Items under a repo header start at depth 1.
+		walkNode(root, files, collapsedDirs, repoName, -1, 1, &items)
+	}
 	return items
 }
 
@@ -48,7 +78,7 @@ func insertPath(root *dirNode, path string, idx int) {
 	parts := strings.Split(path, "/")
 	node := root
 	for d, part := range parts[:len(parts)-1] {
-		fullPath := strings.Join(parts[:d+1], "/")
+		relPath := strings.Join(parts[:d+1], "/")
 		var child *dirNode
 		for _, c := range node.children {
 			if c.name == part {
@@ -57,7 +87,7 @@ func insertPath(root *dirNode, path string, idx int) {
 			}
 		}
 		if child == nil {
-			child = &dirNode{name: part, fullPath: fullPath}
+			child = &dirNode{name: part, relPath: relPath}
 			node.children = append(node.children, child)
 		}
 		node = child
@@ -74,24 +104,30 @@ func sortNode(node *dirNode) {
 	}
 }
 
-// walkNode emits tree items depth-first. The root node (depth == -1) is not emitted itself.
-func walkNode(node *dirNode, files []git_entity.FileDiff, collapsedDirs map[string]bool, depth int, out *[]TreeItem) {
+// walkNode emits tree items depth-first.
+// repoName is used to build unique DirPath keys (prevents collisions across repos).
+// depth == -1 means the root node (not emitted); depthShift is added to all emitted depths.
+func walkNode(node *dirNode, files []git_entity.FileDiff, collapsedDirs map[string]bool,
+	repoName string, depth, depthShift int, out *[]TreeItem) {
+
 	if depth >= 0 {
+		dirPath := repoName + ":" + node.relPath
 		*out = append(*out, TreeItem{
-			Kind:    TreeItemDir,
-			Name:    node.name,
-			DirPath: node.fullPath,
-			FileIdx: -1,
-			Depth:   depth,
+			Kind:     TreeItemDir,
+			Name:     node.name,
+			DirPath:  dirPath,
+			RepoName: repoName,
+			FileIdx:  -1,
+			Depth:    depth + depthShift,
 		})
-		if collapsedDirs[node.fullPath] {
+		if collapsedDirs[dirPath] {
 			return
 		}
 	}
 
 	childDepth := depth + 1
 	for _, child := range node.children {
-		walkNode(child, files, collapsedDirs, childDepth, out)
+		walkNode(child, files, collapsedDirs, repoName, childDepth, depthShift, out)
 	}
 
 	// Sort files in this directory by base name.
@@ -103,11 +139,12 @@ func walkNode(node *dirNode, files []git_entity.FileDiff, collapsedDirs map[stri
 	for _, idx := range sorted {
 		f := files[idx]
 		*out = append(*out, TreeItem{
-			Kind:    TreeItemFile,
-			Name:    filepath.Base(f.Path),
-			DirPath: filepath.Dir(f.Path),
-			FileIdx: idx,
-			Depth:   childDepth,
+			Kind:     TreeItemFile,
+			Name:     filepath.Base(f.Path),
+			DirPath:  repoName + ":" + filepath.Dir(f.Path),
+			RepoName: repoName,
+			FileIdx:  idx,
+			Depth:    childDepth + depthShift,
 		})
 	}
 }

@@ -23,6 +23,7 @@ type FileDiff struct {
 	OldContent string
 	NewContent string
 	IsBinary   bool
+	RepoName   string // git repository name (main repo or submodule name)
 }
 
 // --- Rendering layer models (output of diff_algo) ---

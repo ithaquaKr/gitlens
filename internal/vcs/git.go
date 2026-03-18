@@ -15,8 +15,10 @@ import (
 
 // GitBackend implements Backend using go-git.
 type GitBackend struct {
-	repo *gogit.Repository
-	path string
+	repo           *gogit.Repository
+	path           string
+	rootName       string            // name of the main repo
+	submodulePaths map[string]string // submodule dir path → submodule name
 }
 
 // NewGitBackend opens the git repo at the given path (or searches parent dirs).
@@ -25,7 +27,62 @@ func NewGitBackend(path string) (*GitBackend, error) {
 	if err != nil {
 		return nil, fmt.Errorf("opening git repo at %q: %w", path, err)
 	}
-	return &GitBackend{repo: repo, path: path}, nil
+	g := &GitBackend{repo: repo, path: path, submodulePaths: map[string]string{}}
+	g.detectNames()
+	return g, nil
+}
+
+// detectNames resolves the main repo name and any submodule paths/names.
+func (g *GitBackend) detectNames() {
+	// Try to derive name from remote origin URL.
+	if cfg, err := g.repo.Config(); err == nil {
+		if origin, ok := cfg.Remotes["origin"]; ok && len(origin.URLs) > 0 {
+			if n := repoNameFromURL(origin.URLs[0]); n != "" {
+				g.rootName = n
+			}
+		}
+	}
+	// Fall back to the worktree directory basename.
+	if g.rootName == "" {
+		if wt, err := g.repo.Worktree(); err == nil {
+			g.rootName = filepath.Base(wt.Filesystem.Root())
+		}
+	}
+	if g.rootName == "" {
+		g.rootName = "repo"
+	}
+
+	// Discover submodules from .gitmodules so we can group their files separately.
+	if wt, err := g.repo.Worktree(); err == nil {
+		if subs, err := wt.Submodules(); err == nil {
+			for _, sub := range subs {
+				cfg := sub.Config()
+				if cfg.Path != "" {
+					g.submodulePaths[cfg.Path] = cfg.Name
+				}
+			}
+		}
+	}
+}
+
+// repoNameFromURL extracts a human-readable repo name from a remote URL.
+func repoNameFromURL(url string) string {
+	name := filepath.Base(url)
+	name = strings.TrimSuffix(name, ".git")
+	if name == "" || name == "." || name == "/" {
+		return ""
+	}
+	return name
+}
+
+// fileRepoName returns the repo name for a given file path, checking submodule prefixes first.
+func (g *GitBackend) fileRepoName(path string) string {
+	for prefix, name := range g.submodulePaths {
+		if strings.HasPrefix(path, prefix+"/") || path == prefix {
+			return name
+		}
+	}
+	return g.rootName
 }
 
 // Repo exposes the underlying go-git repository (used by cmd/diff.go for branch name).
@@ -80,7 +137,7 @@ func (g *GitBackend) treeDiff(from, to *object.Tree) (*git_entity.Diff, error) {
 	}
 	var files []git_entity.FileDiff
 	for _, change := range changes {
-		fd, err := changeToFileDiff(change)
+		fd, err := g.changeToFileDiff(change)
 		if err != nil {
 			continue
 		}
@@ -89,7 +146,7 @@ func (g *GitBackend) treeDiff(from, to *object.Tree) (*git_entity.Diff, error) {
 	return &git_entity.Diff{Files: files}, nil
 }
 
-func changeToFileDiff(change *object.Change) (git_entity.FileDiff, error) {
+func (g *GitBackend) changeToFileDiff(change *object.Change) (git_entity.FileDiff, error) {
 	action, err := change.Action()
 	if err != nil {
 		return git_entity.FileDiff{}, err
@@ -105,6 +162,7 @@ func changeToFileDiff(change *object.Change) (git_entity.FileDiff, error) {
 		Status:     actionToStatus(action),
 		OldContent: oldContent,
 		NewContent: newContent,
+		RepoName:   g.fileRepoName(path),
 	}, nil
 }
 
@@ -161,6 +219,7 @@ func (g *GitBackend) GetWorkingTreeDiff(staged bool) (*git_entity.Diff, error) {
 			Path:       path,
 			Status:     s,
 			NewContent: string(newBytes),
+			RepoName:   g.fileRepoName(path),
 		})
 	}
 	return &git_entity.Diff{Files: files}, nil

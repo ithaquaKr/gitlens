@@ -167,13 +167,15 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			items := diff.VisibleTreeItems(s.Files, s.CollapsedDirs)
 			if s.SidebarSelected < len(items) {
 				item := items[s.SidebarSelected]
-				if item.Kind == diff.TreeItemDir {
+				switch item.Kind {
+				case diff.TreeItemDir:
 					s.CollapsedDirs[item.DirPath] = !s.CollapsedDirs[item.DirPath]
 					newItems := diff.VisibleTreeItems(s.Files, s.CollapsedDirs)
 					s.SidebarSelected = clamp(s.SidebarSelected, 0, len(newItems)-1)
-				} else {
+				case diff.TreeItemFile:
 					s.NavigateToFile(item.FileIdx)
 					s.Focus = diff.FocusDiff
+				// TreeItemRepo: no-op on enter
 				}
 			}
 		}
@@ -244,17 +246,19 @@ func (m Model) handleSpace() (tea.Model, tea.Cmd) {
 		items := diff.VisibleTreeItems(s.Files, s.CollapsedDirs)
 		if s.SidebarSelected < len(items) {
 			item := items[s.SidebarSelected]
-			if item.Kind == diff.TreeItemDir {
+			switch item.Kind {
+			case diff.TreeItemDir:
 				s.CollapsedDirs[item.DirPath] = !s.CollapsedDirs[item.DirPath]
 				newItems := diff.VisibleTreeItems(s.Files, s.CollapsedDirs)
 				s.SidebarSelected = clamp(s.SidebarSelected, 0, len(newItems)-1)
-			} else {
+			case diff.TreeItemFile:
 				path := s.Files[item.FileIdx].Path
 				if _, ok := s.ViewedFiles[path]; ok {
 					delete(s.ViewedFiles, path)
 				} else {
 					s.ViewedFiles[path] = struct{}{}
 				}
+			// TreeItemRepo: no-op on space
 			}
 		}
 	} else {

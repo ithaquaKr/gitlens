@@ -21,7 +21,18 @@ func Sidebar(state *diff.AppState, th theme.Theme, width, height int) string {
 		indent := strings.Repeat("  ", item.Depth)
 
 		var line string
-		if item.Kind == diff.TreeItemDir {
+		switch item.Kind {
+		case diff.TreeItemRepo:
+			repoStyle := lipgloss.NewStyle().
+				Foreground(lipgloss.Color(th.UI.Border)).
+				Background(lipgloss.Color(th.UI.Selection)).
+				Bold(true)
+			if i == state.SidebarSelected && state.Focus == diff.FocusSidebar {
+				repoStyle = repoStyle.Underline(true)
+			}
+			line = repoStyle.Render("◉ " + item.Name)
+
+		case diff.TreeItemDir:
 			icon := "▾"
 			if state.CollapsedDirs[item.DirPath] {
 				icon = "▸"
@@ -31,7 +42,8 @@ func Sidebar(state *diff.AppState, th theme.Theme, width, height int) string {
 				nameStyle = nameStyle.Underline(true)
 			}
 			line = fmt.Sprintf("%s%s %s", indent, icon, nameStyle.Render(item.Name+"/"))
-		} else {
+
+		case diff.TreeItemFile:
 			f := state.Files[item.FileIdx]
 			_, isViewed := state.ViewedFiles[f.Path]
 
