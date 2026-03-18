@@ -16,7 +16,7 @@ func HelpModal(th theme.Theme, width, height int) string {
 		{"g g / G", "top / bottom"},
 		{"h/l", "scroll left/right"},
 		{"{/}", "prev/next hunk"},
-		{"ctrl+j/k", "prev/next file"},
+		{"ctrl+j/k, J/K", "next/prev file"},
 		{"ctrl+p", "file picker"},
 		{"[/]/=", "fullscreen old/new/reset"},
 		{"tab", "toggle sidebar"},

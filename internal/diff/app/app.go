@@ -33,6 +33,7 @@ type Model struct {
 	branchName  string
 	editInput   string
 	cancelWatch func()
+	ready       bool // true after first WindowSizeMsg; guards against pre-start mouse events
 }
 
 func NewModel(state *diff.AppState, th theme.Theme, branchName string) Model {
@@ -44,7 +45,7 @@ func NewModel(state *diff.AppState, th theme.Theme, branchName string) Model {
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.EnableMouseCellMotion
+	return nil // mouse tracking already enabled via tea.WithMouseCellMotion() in cmd/diff.go
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -52,6 +53,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.state.Width = msg.Width
 		m.state.Height = msg.Height
+		m.ready = true
 		return m, nil
 	case diff.ReloadMsg:
 		return m, nil
@@ -118,9 +120,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		jumpToHunk(s, -1)
 	case "}":
 		jumpToHunk(s, 1)
-	case "ctrl+j":
+	case "ctrl+j", "J": // ctrl+j = enter on macOS; J is cross-platform alternative
 		s.NavigateToFile(s.CurrentFileIdx + 1)
-	case "ctrl+k":
+	case "ctrl+k", "K":
 		s.NavigateToFile(s.CurrentFileIdx - 1)
 	case "[":
 		s.Fullscreen = diff.FullscreenOld
@@ -191,6 +193,9 @@ func (m Model) handleModalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	if !m.ready {
+		return m, nil
+	}
 	s := m.state
 	switch msg.Button {
 	case tea.MouseButtonWheelUp:
@@ -283,10 +288,10 @@ func (m Model) View() string {
 	switch m.modal {
 	case modalHelp:
 		modal := render.HelpModal(m.theme, s.Width, s.Height)
-		view = overlayCenter(view, modal, s.Width, s.Height)
+		view = lipgloss.Place(s.Width, s.Height, lipgloss.Center, lipgloss.Center, modal)
 	case modalAnnotations:
 		modal := render.AnnotationsModal(s, m.theme)
-		view = overlayCenter(view, modal, s.Width, s.Height)
+		view = lipgloss.Place(s.Width, s.Height, lipgloss.Center, lipgloss.Center, modal)
 	case modalAnnotationEditor:
 		editor := lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
@@ -294,7 +299,7 @@ func (m Model) View() string {
 			Padding(1, 2).
 			Width(60).
 			Render("Add annotation:\n\n" + m.editInput + "█\n\nenter to save  esc to cancel")
-		view = overlayCenter(view, editor, s.Width, s.Height)
+		view = lipgloss.Place(s.Width, s.Height, lipgloss.Center, lipgloss.Center, editor)
 	}
 
 	return view
@@ -393,40 +398,6 @@ func copySelection(s *diff.AppState) tea.Cmd {
 	}
 }
 
-func overlayCenter(base, overlay string, w, h int) string {
-	overlayLines := strings.Split(overlay, "\n")
-	baseLines := strings.Split(base, "\n")
-	overlayH := len(overlayLines)
-	overlayW := lipgloss.Width(overlay)
-	startY := (h - overlayH) / 2
-	startX := (w - overlayW) / 2
-	if startY < 0 {
-		startY = 0
-	}
-	if startX < 0 {
-		startX = 0
-	}
-	for i, line := range overlayLines {
-		lineIdx := startY + i
-		if lineIdx >= len(baseLines) {
-			break
-		}
-		baseLine := baseLines[lineIdx]
-		baseW := lipgloss.Width(baseLine)
-		if startX+overlayW > baseW {
-			baseLines[lineIdx] = baseLine + strings.Repeat(" ", startX+overlayW-baseW)
-		}
-		r := []rune(baseLines[lineIdx])
-		ol := []rune(line)
-		for j, ch := range ol {
-			if startX+j < len(r) {
-				r[startX+j] = ch
-			}
-		}
-		baseLines[lineIdx] = string(r)
-	}
-	return strings.Join(baseLines, "\n")
-}
 
 var (
 	timeNow        = func() time.Time { return time.Now() }

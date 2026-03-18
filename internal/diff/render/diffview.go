@@ -43,7 +43,7 @@ func DiffView(state *diff.AppState, th theme.Theme, width, height int) string {
 	if start < 0 {
 		start = 0
 	}
-	end := start + height - len(state.ContextLines) - 2
+	end := start + height - len(state.ContextLines)
 	if end > len(visibleLines) {
 		end = len(visibleLines)
 	}
