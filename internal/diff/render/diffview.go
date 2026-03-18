@@ -56,7 +56,7 @@ func DiffView(state *diff.AppState, th theme.Theme, width, height int) string {
 		b.WriteString(renderDiffLine(line, th, panelWidth, gutterWidth, oldHL, newHL) + "\n")
 	}
 
-	return b.String()
+	return strings.TrimRight(b.String(), "\n")
 }
 
 func renderDiffLine(line git_entity.DiffLine, th theme.Theme, panelWidth, gutterWidth int, oldHL, newHL []hl.HighlightedLine) string {

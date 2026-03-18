@@ -108,13 +108,15 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if s.Focus == diff.FocusDiff {
 			s.ScrollX = clamp(s.ScrollX-4, 0, 1000)
 		} else {
-			s.SidebarSelected = clamp(s.SidebarSelected-1, 0, len(s.Files)-1)
+			items := diff.VisibleTreeItems(s.Files, s.CollapsedDirs)
+			s.SidebarSelected = clamp(s.SidebarSelected-1, 0, len(items)-1)
 		}
 	case "l":
 		if s.Focus == diff.FocusDiff {
 			s.ScrollX += 4
 		} else {
-			s.SidebarSelected = clamp(s.SidebarSelected+1, 0, len(s.Files)-1)
+			items := diff.VisibleTreeItems(s.Files, s.CollapsedDirs)
+			s.SidebarSelected = clamp(s.SidebarSelected+1, 0, len(items)-1)
 		}
 	case "{":
 		jumpToHunk(s, -1)
@@ -162,8 +164,18 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "enter":
 		if s.Focus == diff.FocusSidebar {
-			s.NavigateToFile(s.SidebarSelected)
-			s.Focus = diff.FocusDiff
+			items := diff.VisibleTreeItems(s.Files, s.CollapsedDirs)
+			if s.SidebarSelected < len(items) {
+				item := items[s.SidebarSelected]
+				if item.Kind == diff.TreeItemDir {
+					s.CollapsedDirs[item.DirPath] = !s.CollapsedDirs[item.DirPath]
+					newItems := diff.VisibleTreeItems(s.Files, s.CollapsedDirs)
+					s.SidebarSelected = clamp(s.SidebarSelected, 0, len(newItems)-1)
+				} else {
+					s.NavigateToFile(item.FileIdx)
+					s.Focus = diff.FocusDiff
+				}
+			}
 		}
 	}
 	s.PendingKey = diff.PendingKeyNone
@@ -229,12 +241,20 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 func (m Model) handleSpace() (tea.Model, tea.Cmd) {
 	s := m.state
 	if s.Focus == diff.FocusSidebar {
-		if s.SidebarSelected < len(s.Files) {
-			path := s.Files[s.SidebarSelected].Path
-			if _, ok := s.ViewedFiles[path]; ok {
-				delete(s.ViewedFiles, path)
+		items := diff.VisibleTreeItems(s.Files, s.CollapsedDirs)
+		if s.SidebarSelected < len(items) {
+			item := items[s.SidebarSelected]
+			if item.Kind == diff.TreeItemDir {
+				s.CollapsedDirs[item.DirPath] = !s.CollapsedDirs[item.DirPath]
+				newItems := diff.VisibleTreeItems(s.Files, s.CollapsedDirs)
+				s.SidebarSelected = clamp(s.SidebarSelected, 0, len(newItems)-1)
 			} else {
-				s.ViewedFiles[path] = struct{}{}
+				path := s.Files[item.FileIdx].Path
+				if _, ok := s.ViewedFiles[path]; ok {
+					delete(s.ViewedFiles, path)
+				} else {
+					s.ViewedFiles[path] = struct{}{}
+				}
 			}
 		}
 	} else {
