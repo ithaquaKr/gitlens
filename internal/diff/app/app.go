@@ -249,7 +249,7 @@ func (m Model) View() string {
 	sidebarView := ""
 	if !s.SidebarCollapsed {
 		sidebarWidth = clamp(s.Width/4, 20, 40)
-		sidebarView = render.Sidebar(s, m.theme, sidebarWidth)
+		sidebarView = render.Sidebar(s, m.theme, sidebarWidth, s.Height-1)
 	}
 
 	diffWidth := s.Width - sidebarWidth

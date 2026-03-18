@@ -10,7 +10,7 @@ import (
 	"gitlens/internal/diff/theme"
 )
 
-func Sidebar(state *diff.AppState, th theme.Theme, width int) string {
+func Sidebar(state *diff.AppState, th theme.Theme, width, height int) string {
 	if state.SidebarCollapsed {
 		return ""
 	}
@@ -52,6 +52,7 @@ func Sidebar(state *diff.AppState, th theme.Theme, width int) string {
 	}
 	return lipgloss.NewStyle().
 		Width(width).
+		Height(height).
 		BorderRight(true).
 		BorderStyle(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color(th.UI.Border)).
