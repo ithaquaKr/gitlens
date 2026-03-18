@@ -18,24 +18,30 @@ func init() {
 		if model == "" {
 			model = "gemini-2.0-flash"
 		}
-		return &geminiProvider{apiKey: apiKey, model: model}, nil
+		client, err := genai.NewClient(context.Background(), option.WithAPIKey(apiKey))
+		if err != nil {
+			return nil, fmt.Errorf("gemini client: %w", err)
+		}
+		return &geminiProvider{
+			client: client,
+			model:  model,
+		}, nil
 	})
 }
 
 type geminiProvider struct {
-	apiKey string
+	client *genai.Client
 	model  string
 }
 
 func (g *geminiProvider) Name() string { return "gemini" }
 
+func (g *geminiProvider) Close() error {
+	return g.client.Close()
+}
+
 func (g *geminiProvider) Complete(ctx context.Context, prompt string) (string, error) {
-	client, err := genai.NewClient(ctx, option.WithAPIKey(g.apiKey))
-	if err != nil {
-		return "", fmt.Errorf("gemini client: %w", err)
-	}
-	defer client.Close()
-	m := client.GenerativeModel(g.model)
+	m := g.client.GenerativeModel(g.model)
 	resp, err := m.GenerateContent(ctx, genai.Text(prompt))
 	if err != nil {
 		return "", fmt.Errorf("gemini complete: %w", err)
@@ -54,13 +60,7 @@ func (g *geminiProvider) Stream(ctx context.Context, prompt string) (<-chan Stre
 	ch := make(chan StreamChunk)
 	go func() {
 		defer close(ch)
-		client, err := genai.NewClient(ctx, option.WithAPIKey(g.apiKey))
-		if err != nil {
-			ch <- StreamChunk{Err: fmt.Errorf("gemini client: %w", err)}
-			return
-		}
-		defer client.Close()
-		m := client.GenerativeModel(g.model)
+		m := g.client.GenerativeModel(g.model)
 		iter := m.GenerateContentStream(ctx, genai.Text(prompt))
 		for {
 			resp, err := iter.Next()
@@ -68,12 +68,19 @@ func (g *geminiProvider) Stream(ctx context.Context, prompt string) (<-chan Stre
 				return
 			}
 			if err != nil {
-				ch <- StreamChunk{Err: fmt.Errorf("gemini stream: %w", err)}
+				select {
+				case ch <- StreamChunk{Err: fmt.Errorf("gemini stream: %w", err)}:
+				case <-ctx.Done():
+				}
 				return
 			}
 			for _, cand := range resp.Candidates {
 				for _, p := range cand.Content.Parts {
-					ch <- StreamChunk{Text: fmt.Sprintf("%s", p)}
+					select {
+					case ch <- StreamChunk{Text: fmt.Sprintf("%s", p)}:
+					case <-ctx.Done():
+						return
+					}
 				}
 			}
 		}

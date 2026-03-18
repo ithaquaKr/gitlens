@@ -16,20 +16,23 @@ func init() {
 		if model == "" {
 			model = "claude-opus-4-6"
 		}
-		return &claudeProvider{apiKey: apiKey, model: model}, nil
+		client := anthropic.NewClient(option.WithAPIKey(apiKey))
+		return &claudeProvider{
+			client: client,
+			model:  model,
+		}, nil
 	})
 }
 
 type claudeProvider struct {
-	apiKey string
+	client anthropic.Client
 	model  string
 }
 
 func (c *claudeProvider) Name() string { return "claude" }
 
 func (c *claudeProvider) Complete(ctx context.Context, prompt string) (string, error) {
-	client := anthropic.NewClient(option.WithAPIKey(c.apiKey))
-	msg, err := client.Messages.New(ctx, anthropic.MessageNewParams{
+	msg, err := c.client.Messages.New(ctx, anthropic.MessageNewParams{
 		Model:     anthropic.Model(c.model),
 		MaxTokens: 1024,
 		Messages: []anthropic.MessageParam{
@@ -49,8 +52,7 @@ func (c *claudeProvider) Stream(ctx context.Context, prompt string) (<-chan Stre
 	ch := make(chan StreamChunk)
 	go func() {
 		defer close(ch)
-		client := anthropic.NewClient(option.WithAPIKey(c.apiKey))
-		stream := client.Messages.NewStreaming(ctx, anthropic.MessageNewParams{
+		stream := c.client.Messages.NewStreaming(ctx, anthropic.MessageNewParams{
 			Model:     anthropic.Model(c.model),
 			MaxTokens: 1024,
 			Messages: []anthropic.MessageParam{
@@ -61,11 +63,18 @@ func (c *claudeProvider) Stream(ctx context.Context, prompt string) (<-chan Stre
 			event := stream.Current()
 			// content_block_delta events carry text in Delta.Text
 			if event.Type == "content_block_delta" && event.Delta.Text != "" {
-				ch <- StreamChunk{Text: event.Delta.Text}
+				select {
+				case ch <- StreamChunk{Text: event.Delta.Text}:
+				case <-ctx.Done():
+					return
+				}
 			}
 		}
 		if err := stream.Err(); err != nil {
-			ch <- StreamChunk{Err: fmt.Errorf("claude stream: %w", err)}
+			select {
+			case ch <- StreamChunk{Err: fmt.Errorf("claude stream: %w", err)}:
+			case <-ctx.Done():
+			}
 		}
 	}()
 	return ch, nil
