@@ -58,15 +58,15 @@ var diffCmd = &cobra.Command{
 		files := gitDiff.Files
 		if len(diffFiles) > 0 {
 			files = filterFiles(files, diffFiles)
+			if len(files) == 0 {
+				return fmt.Errorf("no files matched the --file filter")
+			}
 		}
 
 		// Load theme
-		themeName := Cfg.Theme.Base
 		if diffTheme != "" {
-			themeName = diffTheme
-			Cfg.Theme.Base = themeName
+			Cfg.Theme.Base = diffTheme
 		}
-		_ = themeName
 		th := theme.Load(Cfg)
 
 		// Get branch name for footer
