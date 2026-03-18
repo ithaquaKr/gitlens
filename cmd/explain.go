@@ -44,6 +44,9 @@ var explainCmd = &cobra.Command{
 		} else if ref == "-" {
 			scanner := bufio.NewScanner(os.Stdin)
 			scanner.Scan()
+			if err := scanner.Err(); err != nil {
+				return fmt.Errorf("reading stdin: %w", err)
+			}
 			ref = strings.TrimSpace(scanner.Text())
 			if ref == "" {
 				return fmt.Errorf("no ref received from stdin")
@@ -96,14 +99,14 @@ var explainCmd = &cobra.Command{
 			return printWithMdcat(result)
 		}
 
+		var sb strings.Builder
 		for chunk := range ch {
 			if chunk.Err != nil {
 				return chunk.Err
 			}
-			fmt.Print(chunk.Text)
+			sb.WriteString(chunk.Text)
 		}
-		fmt.Println()
-		return nil
+		return printWithMdcat(sb.String())
 	},
 }
 
@@ -127,9 +130,12 @@ func fzfSelectCommit() (string, error) {
 		return "", fmt.Errorf("git log: %w", err)
 	}
 	out, err := fzfCmd.Output()
-	logCmd.Wait()
+	waitErr := logCmd.Wait()
 	if err != nil {
 		return "", fmt.Errorf("fzf: %w", err)
+	}
+	if waitErr != nil {
+		fmt.Fprintf(os.Stderr, "git log: %v\n", waitErr)
 	}
 	fields := strings.Fields(strings.TrimSpace(string(out)))
 	if len(fields) == 0 {
