@@ -38,10 +38,12 @@ var draftCmd = &cobra.Command{
 		}
 
 		prompt := ai.DraftPrompt(diffText, draftContext, Cfg.Draft.CommitTypes)
-		ctx := context.Background()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
 		ch, err := provider.Stream(ctx, prompt)
 		if err != nil {
+			fmt.Fprintf(os.Stderr, "stream unavailable, falling back: %v\n", err)
 			result, err := provider.Complete(ctx, prompt)
 			if err != nil {
 				return err
@@ -74,20 +76,24 @@ func buildDiffText(diff *git_entity.Diff) string {
 		switch f.Status {
 		case "A":
 			// New file: all lines are additions
-			for _, line := range strings.Split(f.NewContent, "\n") {
+			for _, line := range strings.Split(strings.TrimRight(f.NewContent, "\n"), "\n") {
 				sb.WriteString("+" + line + "\n")
 			}
 		case "D":
 			// Deleted file: all lines are removals
-			for _, line := range strings.Split(f.OldContent, "\n") {
+			for _, line := range strings.Split(strings.TrimRight(f.OldContent, "\n"), "\n") {
 				sb.WriteString("-" + line + "\n")
 			}
 		default:
 			// Modified: show removed old lines then added new lines
-			for _, line := range strings.Split(f.OldContent, "\n") {
+			oldLines := strings.Split(strings.TrimRight(f.OldContent, "\n"), "\n")
+			newLines := strings.Split(strings.TrimRight(f.NewContent, "\n"), "\n")
+			sb.WriteString(fmt.Sprintf("@@ -%d,%d +%d,%d @@\n",
+				1, len(oldLines), 1, len(newLines)))
+			for _, line := range oldLines {
 				sb.WriteString("-" + line + "\n")
 			}
-			for _, line := range strings.Split(f.NewContent, "\n") {
+			for _, line := range newLines {
 				sb.WriteString("+" + line + "\n")
 			}
 		}
