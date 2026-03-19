@@ -11,12 +11,16 @@ import (
 
 func HelpModal(th theme.Theme, width, height int) string {
 	help := [][]string{
-		{"j/k", "scroll down/up"},
+		{"j/k, ↓/↑", "scroll diff / move in sidebar"},
 		{"ctrl+d/u", "half-page scroll"},
+		{"pgdn/pgup", "full-page scroll"},
 		{"g g / G", "top / bottom"},
-		{"h/l", "scroll left/right"},
+		{"h/l (diff)", "scroll left / right"},
+		{"h (sidebar)", "collapse dir"},
+		{"l / enter (sidebar)", "expand / open"},
 		{"{/}", "prev/next hunk"},
-		{"ctrl+j/k, J/K", "next/prev file"},
+		{"J/K", "next/prev file (macOS+Linux)"},
+		{"ctrl+j/k", "next/prev file (Linux only)"},
 		{"ctrl+p", "file picker"},
 		{"[/]/=", "fullscreen old/new/reset"},
 		{"tab", "toggle sidebar"},
@@ -28,9 +32,9 @@ func HelpModal(th theme.Theme, width, height int) string {
 		{"space", "mark file viewed"},
 		{"/", "search"},
 		{"n/N", "next/prev match"},
+		{"</> (stacked)", "prev/next commit"},
 		{"?", "toggle help"},
-		{"q", "quit"},
-		{"ctrl+l/h", "next/prev commit (stacked)"},
+		{"q / ctrl+c", "quit"},
 	}
 	boxWidth := 50
 	var b strings.Builder

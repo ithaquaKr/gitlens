@@ -70,32 +70,50 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.modal != modalNone {
 		return m.handleModalKey(msg)
 	}
+
+	inSidebar := s.Focus == diff.FocusSidebar
+
 	switch msg.String() {
 	case "q", "ctrl+c":
 		if m.cancelWatch != nil {
 			m.cancelWatch()
 		}
 		return m, tea.Quit
+
 	case "?":
 		m.modal = modalHelp
 	case "I":
 		m.modal = modalAnnotations
 	case "ctrl+p":
 		m.modal = modalFilePicker
+
+	// ----- Vertical scroll / sidebar selection -----
 	case "j", "down":
-		s.ScrollY = clamp(s.ScrollY+1, 0, len(s.DiffLines)-1)
+		if inSidebar {
+			items := diff.VisibleTreeItems(s.Files, s.CollapsedDirs)
+			s.SidebarSelected = clamp(s.SidebarSelected+1, 0, len(items)-1)
+		} else {
+			s.ScrollY = clamp(s.ScrollY+1, 0, maxScrollY(s))
+		}
 	case "k", "up":
-		s.ScrollY = clamp(s.ScrollY-1, 0, len(s.DiffLines)-1)
+		if inSidebar {
+			items := diff.VisibleTreeItems(s.Files, s.CollapsedDirs)
+			s.SidebarSelected = clamp(s.SidebarSelected-1, 0, len(items)-1)
+		} else {
+			s.ScrollY = clamp(s.ScrollY-1, 0, maxScrollY(s))
+		}
+
+	// ----- Page / half-page scroll (diff only) -----
 	case "ctrl+d":
-		s.ScrollY = clamp(s.ScrollY+s.Height/2, 0, len(s.DiffLines)-1)
+		s.ScrollY = clamp(s.ScrollY+s.Height/2, 0, maxScrollY(s))
 	case "ctrl+u":
-		s.ScrollY = clamp(s.ScrollY-s.Height/2, 0, len(s.DiffLines)-1)
+		s.ScrollY = clamp(s.ScrollY-s.Height/2, 0, maxScrollY(s))
 	case "pgdown":
-		s.ScrollY = clamp(s.ScrollY+s.Height, 0, len(s.DiffLines)-1)
+		s.ScrollY = clamp(s.ScrollY+(s.Height-2), 0, maxScrollY(s))
 	case "pgup":
-		s.ScrollY = clamp(s.ScrollY-s.Height, 0, len(s.DiffLines)-1)
+		s.ScrollY = clamp(s.ScrollY-(s.Height-2), 0, maxScrollY(s))
 	case "G":
-		s.ScrollY = len(s.DiffLines) - 1
+		s.ScrollY = maxScrollY(s)
 	case "g":
 		if s.PendingKey == diff.PendingKeyG {
 			s.ScrollY = 0
@@ -104,40 +122,74 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			s.PendingKey = diff.PendingKeyG
 		}
 		return m, nil
+
+	// ----- Horizontal navigation -----
+	// In diff focus: h/l scroll left/right.
+	// In sidebar focus: l expands dir / opens file, h collapses dir.
 	case "h":
-		if s.Focus == diff.FocusDiff {
-			s.ScrollX = clamp(s.ScrollX-4, 0, 1000)
-		} else {
+		if inSidebar {
 			items := diff.VisibleTreeItems(s.Files, s.CollapsedDirs)
-			s.SidebarSelected = clamp(s.SidebarSelected-1, 0, len(items)-1)
+			if s.SidebarSelected < len(items) {
+				item := items[s.SidebarSelected]
+				if item.Kind == diff.TreeItemDir && !s.CollapsedDirs[item.DirPath] {
+					s.CollapsedDirs[item.DirPath] = true
+					newItems := diff.VisibleTreeItems(s.Files, s.CollapsedDirs)
+					s.SidebarSelected = clamp(s.SidebarSelected, 0, len(newItems)-1)
+				}
+			}
+		} else {
+			s.ScrollX = clamp(s.ScrollX-4, 0, 1000)
 		}
 	case "l":
-		if s.Focus == diff.FocusDiff {
-			s.ScrollX += 4
-		} else {
+		if inSidebar {
 			items := diff.VisibleTreeItems(s.Files, s.CollapsedDirs)
-			s.SidebarSelected = clamp(s.SidebarSelected+1, 0, len(items)-1)
+			if s.SidebarSelected < len(items) {
+				item := items[s.SidebarSelected]
+				switch item.Kind {
+				case diff.TreeItemDir:
+					if s.CollapsedDirs[item.DirPath] {
+						s.CollapsedDirs[item.DirPath] = false
+					}
+				case diff.TreeItemFile:
+					s.NavigateToFile(item.FileIdx)
+					s.Focus = diff.FocusDiff
+				}
+			}
+		} else {
+			s.ScrollX += 4
 		}
+
+	// ----- Hunk navigation -----
 	case "{":
 		jumpToHunk(s, -1)
 	case "}":
 		jumpToHunk(s, 1)
-	case "ctrl+j", "J": // ctrl+j = enter on macOS; J is cross-platform alternative
+
+	// ----- File navigation -----
+	// ctrl+j = Enter on macOS (0x0A); J (shift+j) is the cross-platform alias.
+	// ctrl+k on Linux; K (shift+k) is the cross-platform alias.
+	case "ctrl+j", "J":
 		s.NavigateToFile(s.CurrentFileIdx + 1)
 	case "ctrl+k", "K":
 		s.NavigateToFile(s.CurrentFileIdx - 1)
+
+	// ----- Fullscreen panel -----
 	case "[":
 		s.Fullscreen = diff.FullscreenOld
 	case "]":
 		s.Fullscreen = diff.FullscreenNew
 	case "=":
 		s.Fullscreen = diff.FullscreenOff
+
+	// ----- Focus -----
 	case "1":
 		s.Focus = diff.FocusSidebar
 	case "2":
 		s.Focus = diff.FocusDiff
 	case "tab":
 		s.SidebarCollapsed = !s.SidebarCollapsed
+
+	// ----- Actions -----
 	case "e":
 		return m, openEditor(s)
 	case "y":
@@ -145,7 +197,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "i":
 		m.modal = modalAnnotationEditor
 		m.editInput = ""
-	case "space":
+	case " ": // spacebar — Bubble Tea sends " " (rune), not "space"
 		return m.handleSpace()
 	case "/":
 		s.SearchActive = true
@@ -154,16 +206,22 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		advanceSearch(s, 1)
 	case "N":
 		advanceSearch(s, -1)
-	case "ctrl+l":
-		if s.StackedMode {
-			navigateStack(s, 1)
-		}
-	case "ctrl+h":
+
+	// ----- Stacked-commit navigation -----
+	// "<" and ">" are safe on both macOS and Linux; ctrl+h = backspace on many
+	// terminals and ctrl+l may clear screen, so we avoid those.
+	case "<":
 		if s.StackedMode {
 			navigateStack(s, -1)
 		}
+	case ">":
+		if s.StackedMode {
+			navigateStack(s, 1)
+		}
+
+	// ----- Sidebar enter -----
 	case "enter":
-		if s.Focus == diff.FocusSidebar {
+		if inSidebar {
 			items := diff.VisibleTreeItems(s.Files, s.CollapsedDirs)
 			if s.SidebarSelected < len(items) {
 				item := items[s.SidebarSelected]
@@ -175,11 +233,12 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				case diff.TreeItemFile:
 					s.NavigateToFile(item.FileIdx)
 					s.Focus = diff.FocusDiff
-				// TreeItemRepo: no-op on enter
+				// TreeItemRepo: no-op
 				}
 			}
 		}
 	}
+
 	s.PendingKey = diff.PendingKeyNone
 	return m, nil
 }
@@ -213,9 +272,9 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	s := m.state
 	switch msg.Button {
 	case tea.MouseButtonWheelUp:
-		s.ScrollY = clamp(s.ScrollY-3, 0, len(s.DiffLines)-1)
+		s.ScrollY = clamp(s.ScrollY-3, 0, maxScrollY(s))
 	case tea.MouseButtonWheelDown:
-		s.ScrollY = clamp(s.ScrollY+3, 0, len(s.DiffLines)-1)
+		s.ScrollY = clamp(s.ScrollY+3, 0, maxScrollY(s))
 	case tea.MouseButtonLeft:
 		switch msg.Action {
 		case tea.MouseActionPress:
@@ -258,7 +317,7 @@ func (m Model) handleSpace() (tea.Model, tea.Cmd) {
 				} else {
 					s.ViewedFiles[path] = struct{}{}
 				}
-			// TreeItemRepo: no-op on space
+			// TreeItemRepo: no-op
 			}
 		}
 	} else {
@@ -329,6 +388,20 @@ func (m Model) View() string {
 	}
 
 	return view
+}
+
+// maxScrollY returns the highest valid ScrollY so that the last diff line is
+// visible at the bottom of the viewport rather than scrolling past it.
+func maxScrollY(s *diff.AppState) int {
+	if s.Height < 3 {
+		return 0 // not yet initialised
+	}
+	viewH := s.Height - 2 // subtract fileHeader row + footer row
+	n := len(s.DiffLines)
+	if n <= viewH {
+		return 0
+	}
+	return n - viewH
 }
 
 func clamp(v, lo, hi int) int {
@@ -423,7 +496,6 @@ func copySelection(s *diff.AppState) tea.Cmd {
 		return nil
 	}
 }
-
 
 var (
 	timeNow        = func() time.Time { return time.Now() }

@@ -26,7 +26,15 @@ func DiffView(state *diff.AppState, th theme.Theme, width, height int) string {
 	if gutterWidth == 0 {
 		gutterWidth = 5
 	}
-	panelWidth := (width - gutterWidth*2 - 1) / 2
+
+	fs := state.Fullscreen
+	var panelWidth int
+	switch fs {
+	case diff.FullscreenOld, diff.FullscreenNew:
+		panelWidth = width - gutterWidth // one gutter + one panel
+	default:
+		panelWidth = (width - gutterWidth*2 - 1) / 2 // two gutters + divider
+	}
 
 	var b strings.Builder
 
@@ -53,13 +61,15 @@ func DiffView(state *diff.AppState, th theme.Theme, width, height int) string {
 
 	for i := start; i < end; i++ {
 		line := visibleLines[i]
-		b.WriteString(renderDiffLine(line, th, panelWidth, gutterWidth, oldHL, newHL) + "\n")
+		b.WriteString(renderDiffLine(line, th, panelWidth, gutterWidth, oldHL, newHL, fs) + "\n")
 	}
 
 	return strings.TrimRight(b.String(), "\n")
 }
 
-func renderDiffLine(line git_entity.DiffLine, th theme.Theme, panelWidth, gutterWidth int, oldHL, newHL []hl.HighlightedLine) string {
+func renderDiffLine(line git_entity.DiffLine, th theme.Theme, panelWidth, gutterWidth int,
+	oldHL, newHL []hl.HighlightedLine, fs diff.DiffFullscreen) string {
+
 	var oldBg, newBg lipgloss.Color
 	switch line.ChangeType {
 	case git_entity.Delete:
@@ -71,13 +81,25 @@ func renderDiffLine(line git_entity.DiffLine, th theme.Theme, panelWidth, gutter
 		newBg = lipgloss.Color(th.Diff.AddedBg)
 	}
 
-	oldGutter := renderGutter(line.OldLine, line.ChangeType, true, th, gutterWidth)
-	newGutter := renderGutter(line.NewLine, line.ChangeType, false, th, gutterWidth)
-	oldPanel := renderPanel(line.OldLine, line.OldSegments, oldBg, panelWidth, th)
-	newPanel := renderPanel(line.NewLine, line.NewSegments, newBg, panelWidth, th)
+	switch fs {
+	case diff.FullscreenOld:
+		gutter := renderGutter(line.OldLine, line.ChangeType, true, th, gutterWidth)
+		panel := renderPanel(line.OldLine, line.OldSegments, oldBg, panelWidth, th)
+		return gutter + panel
 
-	divider := lipgloss.NewStyle().Foreground(lipgloss.Color(th.UI.Border)).Render("│")
-	return oldGutter + oldPanel + divider + newGutter + newPanel
+	case diff.FullscreenNew:
+		gutter := renderGutter(line.NewLine, line.ChangeType, false, th, gutterWidth)
+		panel := renderPanel(line.NewLine, line.NewSegments, newBg, panelWidth, th)
+		return gutter + panel
+
+	default:
+		oldGutter := renderGutter(line.OldLine, line.ChangeType, true, th, gutterWidth)
+		newGutter := renderGutter(line.NewLine, line.ChangeType, false, th, gutterWidth)
+		oldPanel := renderPanel(line.OldLine, line.OldSegments, oldBg, panelWidth, th)
+		newPanel := renderPanel(line.NewLine, line.NewSegments, newBg, panelWidth, th)
+		divider := lipgloss.NewStyle().Foreground(lipgloss.Color(th.UI.Border)).Render("│")
+		return oldGutter + oldPanel + divider + newGutter + newPanel
+	}
 }
 
 func renderGutter(lc *git_entity.LineContent, ct git_entity.ChangeType, isOld bool, th theme.Theme, width int) string {
