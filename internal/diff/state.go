@@ -100,6 +100,7 @@ type AppState struct {
 	ScrollY        int
 	ScrollX        int
 	SidebarScrollX int
+	SidebarScrollY int // vertical scroll offset for the sidebar viewport
 
 	ContextLines []ContextLine
 	PendingKey   PendingKey

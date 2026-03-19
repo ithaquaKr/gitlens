@@ -16,8 +16,33 @@ func Sidebar(state *diff.AppState, th theme.Theme, width, height int) string {
 
 	items := diff.VisibleTreeItems(state.Files, state.CollapsedDirs)
 
+	// Determine the visible window.  SidebarScrollY is maintained by the key
+	// handler (clampSidebarScroll), but we defensively recompute it here so
+	// that the first render before any key press is also correct.
+	scrollY := state.SidebarScrollY
+	if state.SidebarSelected < scrollY {
+		scrollY = state.SidebarSelected
+	}
+	if state.SidebarSelected >= scrollY+height {
+		scrollY = state.SidebarSelected - height + 1
+	}
+	if scrollY < 0 {
+		scrollY = 0
+	}
+
+	// Slice to exactly height rows so lipgloss Height() has nothing to clip.
+	end := scrollY + height
+	if end > len(items) {
+		end = len(items)
+	}
+	visible := items
+	if scrollY > 0 || end < len(items) {
+		visible = items[scrollY:end]
+	}
+
 	var lines []string
-	for i, item := range items {
+	for j, item := range visible {
+		fullIdx := scrollY + j // index into the full items slice
 		indent := strings.Repeat("  ", item.Depth)
 
 		var line string
@@ -27,7 +52,7 @@ func Sidebar(state *diff.AppState, th theme.Theme, width, height int) string {
 				Foreground(lipgloss.Color(th.UI.Border)).
 				Background(lipgloss.Color(th.UI.Selection)).
 				Bold(true)
-			if i == state.SidebarSelected && state.Focus == diff.FocusSidebar {
+			if fullIdx == state.SidebarSelected && state.Focus == diff.FocusSidebar {
 				repoStyle = repoStyle.Underline(true)
 			}
 			line = repoStyle.Render("◉ " + item.Name)
@@ -38,7 +63,7 @@ func Sidebar(state *diff.AppState, th theme.Theme, width, height int) string {
 				icon = "▸"
 			}
 			nameStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(th.UI.Text)).Bold(true)
-			if i == state.SidebarSelected && state.Focus == diff.FocusSidebar {
+			if fullIdx == state.SidebarSelected && state.Focus == diff.FocusSidebar {
 				nameStyle = nameStyle.Underline(true)
 			}
 			line = fmt.Sprintf("%s%s %s", indent, icon, nameStyle.Render(item.Name+"/"))
@@ -65,7 +90,7 @@ func Sidebar(state *diff.AppState, th theme.Theme, width, height int) string {
 			if item.FileIdx == state.CurrentFileIdx {
 				nameStyle = nameStyle.Background(lipgloss.Color(th.UI.Selection)).Bold(true)
 			}
-			if i == state.SidebarSelected && state.Focus == diff.FocusSidebar {
+			if fullIdx == state.SidebarSelected && state.Focus == diff.FocusSidebar {
 				nameStyle = nameStyle.Underline(true)
 			}
 

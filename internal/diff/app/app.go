@@ -92,6 +92,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if inSidebar {
 			items := diff.VisibleTreeItems(s.Files, s.CollapsedDirs)
 			s.SidebarSelected = clamp(s.SidebarSelected+1, 0, len(items)-1)
+			clampSidebarScroll(s)
 		} else {
 			s.ScrollY = clamp(s.ScrollY+1, 0, maxScrollY(s))
 		}
@@ -99,6 +100,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if inSidebar {
 			items := diff.VisibleTreeItems(s.Files, s.CollapsedDirs)
 			s.SidebarSelected = clamp(s.SidebarSelected-1, 0, len(items)-1)
+			clampSidebarScroll(s)
 		} else {
 			s.ScrollY = clamp(s.ScrollY-1, 0, maxScrollY(s))
 		}
@@ -135,6 +137,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 					s.CollapsedDirs[item.DirPath] = true
 					newItems := diff.VisibleTreeItems(s.Files, s.CollapsedDirs)
 					s.SidebarSelected = clamp(s.SidebarSelected, 0, len(newItems)-1)
+					clampSidebarScroll(s)
 				}
 			}
 		} else {
@@ -149,6 +152,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				case diff.TreeItemDir:
 					if s.CollapsedDirs[item.DirPath] {
 						s.CollapsedDirs[item.DirPath] = false
+						clampSidebarScroll(s)
 					}
 				case diff.TreeItemFile:
 					s.NavigateToFile(item.FileIdx)
@@ -166,12 +170,13 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		jumpToHunk(s, 1)
 
 	// ----- File navigation -----
-	// ctrl+j = Enter on macOS (0x0A); J (shift+j) is the cross-platform alias.
-	// ctrl+k on Linux; K (shift+k) is the cross-platform alias.
+	// J/K navigate in tree display order so the sequence matches what the
+	// sidebar shows. ctrl+j = Enter on macOS (0x0A byte), so J is the
+	// cross-platform alias; ctrl+k/K for consistency.
 	case "ctrl+j", "J":
-		s.NavigateToFile(s.CurrentFileIdx + 1)
+		s.NavigateToFile(diff.AdjacentFileIdx(s.Files, s.CurrentFileIdx, 1))
 	case "ctrl+k", "K":
-		s.NavigateToFile(s.CurrentFileIdx - 1)
+		s.NavigateToFile(diff.AdjacentFileIdx(s.Files, s.CurrentFileIdx, -1))
 
 	// ----- Fullscreen panel -----
 	case "[":
@@ -230,6 +235,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 					s.CollapsedDirs[item.DirPath] = !s.CollapsedDirs[item.DirPath]
 					newItems := diff.VisibleTreeItems(s.Files, s.CollapsedDirs)
 					s.SidebarSelected = clamp(s.SidebarSelected, 0, len(newItems)-1)
+					clampSidebarScroll(s)
 				case diff.TreeItemFile:
 					s.NavigateToFile(item.FileIdx)
 					s.Focus = diff.FocusDiff
@@ -310,6 +316,7 @@ func (m Model) handleSpace() (tea.Model, tea.Cmd) {
 				s.CollapsedDirs[item.DirPath] = !s.CollapsedDirs[item.DirPath]
 				newItems := diff.VisibleTreeItems(s.Files, s.CollapsedDirs)
 				s.SidebarSelected = clamp(s.SidebarSelected, 0, len(newItems)-1)
+				clampSidebarScroll(s)
 			case diff.TreeItemFile:
 				path := s.Files[item.FileIdx].Path
 				if _, ok := s.ViewedFiles[path]; ok {
@@ -388,6 +395,21 @@ func (m Model) View() string {
 	}
 
 	return view
+}
+
+// clampSidebarScroll adjusts SidebarScrollY so that SidebarSelected remains
+// visible within the sidebar viewport (height = s.Height - 1).
+func clampSidebarScroll(s *diff.AppState) {
+	h := s.Height - 1
+	if h <= 0 {
+		return
+	}
+	if s.SidebarSelected < s.SidebarScrollY {
+		s.SidebarScrollY = s.SidebarSelected
+	}
+	if s.SidebarSelected >= s.SidebarScrollY+h {
+		s.SidebarScrollY = s.SidebarSelected - h + 1
+	}
 }
 
 // maxScrollY returns the highest valid ScrollY so that the last diff line is

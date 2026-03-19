@@ -214,11 +214,23 @@ func (g *GitBackend) GetWorkingTreeDiff(staged bool) (*git_entity.Diff, error) {
 		default:
 			continue
 		}
-		newBytes, _ := os.ReadFile(filepath.Join(g.path, path))
+		// For modified/deleted files, load the committed version as OldContent
+		// so the diff shows real removals, not just additions against empty.
+		var oldContent string
+		if s == "M" || s == "D" {
+			oldContent, _ = g.GetFileContentAtRef(path, "HEAD")
+		}
+		// For added/modified files, read the on-disk version as NewContent.
+		var newContent string
+		if s == "A" || s == "M" {
+			b, _ := os.ReadFile(filepath.Join(g.path, path))
+			newContent = string(b)
+		}
 		files = append(files, git_entity.FileDiff{
 			Path:       path,
 			Status:     s,
-			NewContent: string(newBytes),
+			OldContent: oldContent,
+			NewContent: newContent,
 			RepoName:   g.fileRepoName(path),
 		})
 	}

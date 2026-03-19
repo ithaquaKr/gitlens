@@ -74,6 +74,41 @@ func VisibleTreeItems(files []git_entity.FileDiff, collapsedDirs map[string]bool
 	return items
 }
 
+// AllFilesInTreeOrder returns file indices ordered by the tree's display order
+// (alphabetical within each directory, dirs before files), ignoring collapse state.
+// Use this for J/K file navigation so that it matches what the user sees in the sidebar.
+func AllFilesInTreeOrder(files []git_entity.FileDiff) []int {
+	items := VisibleTreeItems(files, map[string]bool{})
+	var order []int
+	for _, item := range items {
+		if item.Kind == TreeItemFile {
+			order = append(order, item.FileIdx)
+		}
+	}
+	return order
+}
+
+// AdjacentFileIdx finds currentIdx in the tree order and returns the index one
+// step in direction dir (+1 or -1). Returns currentIdx if already at a boundary.
+func AdjacentFileIdx(files []git_entity.FileDiff, currentIdx, dir int) int {
+	order := AllFilesInTreeOrder(files)
+	for i, idx := range order {
+		if idx == currentIdx {
+			next := i + dir
+			if next >= 0 && next < len(order) {
+				return order[next]
+			}
+			return currentIdx // at boundary
+		}
+	}
+	// currentIdx not found in tree (shouldn't happen); fall back to array order.
+	next := currentIdx + dir
+	if next >= 0 && next < len(files) {
+		return next
+	}
+	return currentIdx
+}
+
 func insertPath(root *dirNode, path string, idx int) {
 	parts := strings.Split(path, "/")
 	node := root
